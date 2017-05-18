@@ -1,0 +1,13 @@
+
+- job-template:
+    name: 'same-{text}-name'
+    folder: '{name}'
+
+- project:
+    name: folders
+    text: job
+    jobs:
+        - 'same-{text}-name'
+
+- job:
+    name: same-job-name

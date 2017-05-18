@@ -64,11 +64,16 @@ def get_scenarios(fixtures_path, in_ext='yaml', out_ext='xml',
         - content of the fixture output file (aka expected)
     """
     scenarios = []
-    files = []
-    for dirpath, dirs, fs in os.walk(fixtures_path):
-        files.extend([os.path.join(dirpath, f) for f in fs])
+    files = {}
+    for dirpath, _, fs in os.walk(fixtures_path):
+        for fn in fs:
+            if fn in files:
+                files[fn].append(os.path.join(dirpath, fn))
+            else:
+                files[fn] = [os.path.join(dirpath, fn)]
 
-    input_files = [f for f in files if re.match(r'.*\.{0}$'.format(in_ext), f)]
+    input_files = [files[f][0] for f in files if
+                   re.match(r'.*\.{0}$'.format(in_ext), f)]
 
     for input_filename in input_files:
         if input_filename.endswith(plugins_info_ext):
@@ -80,24 +85,27 @@ def get_scenarios(fixtures_path, in_ext='yaml', out_ext='xml',
         output_candidate = re.sub(r'\.{0}$'.format(in_ext),
                                   '.{0}'.format(out_ext), input_filename)
         # assume empty file if no output candidate found
-        if output_candidate not in files:
-            output_candidate = None
+        if os.path.basename(output_candidate) in files:
+            out_filenames = files[os.path.basename(output_candidate)]
+        else:
+            out_filenames = None
 
         plugins_info_candidate = re.sub(r'\.{0}$'.format(in_ext),
                                         '.{0}'.format(plugins_info_ext),
                                         input_filename)
-        if plugins_info_candidate not in files:
+        if os.path.basename(plugins_info_candidate) not in files:
             plugins_info_candidate = None
 
         conf_candidate = re.sub(r'\.yaml$|\.json$', '.conf', input_filename)
-        # If present, add the configuration file
-        if conf_candidate not in files:
-            conf_candidate = None
+        conf_filename = files.get(os.path.basename(conf_candidate), None)
+
+        if conf_filename is not None:
+            conf_filename = conf_filename[0]
 
         scenarios.append((input_filename, {
             'in_filename': input_filename,
-            'out_filename': output_candidate,
-            'conf_filename': conf_candidate,
+            'out_filenames': out_filenames,
+            'conf_filename': conf_filename,
             'plugins_info_filename': plugins_info_candidate,
         }))
 
@@ -117,12 +125,13 @@ class BaseTestCase(testtools.TestCase):
 
     def _read_utf8_content(self):
         # if None assume empty file
-        if self.out_filename is None:
+        if not self.out_filenames:
             return u""
 
         # Read XML content, assuming it is unicode encoded
-        xml_content = u"%s" % io.open(self.out_filename,
-                                      'r', encoding='utf-8').read()
+        xml_content = ""
+        for f in sorted(self.out_filenames):
+            xml_content += u"%s" % io.open(f, 'r', encoding='utf-8').read()
         return xml_content
 
     def _read_yaml_content(self, filename):
@@ -204,6 +213,23 @@ class BaseScenariosTestCase(testscenarios.TestWithScenarios, BaseTestCase):
                                               doctest.ELLIPSIS |
                                               doctest.REPORT_NDIFF)
         )
+
+        # check output file is under correct path
+        if 'name' in yaml_content:
+            prefix = os.path.dirname(self.in_filename)
+            # split using '/' since fullname uses URL path separator
+            expected_folders = [os.path.normpath(
+                os.path.join(prefix,
+                             '/'.join(parser._getfullname(yaml_content).
+                                      split('/')[:-1])))]
+            actual_folders = [os.path.dirname(f) for f in self.out_filenames]
+
+            self.assertEquals(
+                expected_folders, actual_folders,
+                "Output file under wrong path, was '%s', should be '%s'" %
+                (self.out_filenames[0],
+                 os.path.join(expected_folders[0],
+                              os.path.basename(self.out_filenames[0]))))
 
 
 class SingleJobTestCase(BaseScenariosTestCase):

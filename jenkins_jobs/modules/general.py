@@ -104,6 +104,10 @@ Example:
       If present, this section should contain a single **xml** entry. This XML
       will be inserted at the top-level of the :ref:`Job` definition.
 
+    * **folder**:
+      The folder attribute allows you to specify which Jenkins folder to
+      upload the job to, requires the `CloudBees Folders Plugin.
+      <https://wiki.jenkins-ci.org/display/JENKINS/CloudBees+Folders+Plugin>`_
 """
 
 import logging
