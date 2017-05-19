@@ -233,6 +233,12 @@ class JenkinsManager(object):
                     continue
 
                 output_fn = os.path.join(output, os.path.normpath(job.name))
+
+                # Only create the containing directory if it does not exist.
+                base_dir = os.path.dirname(output_fn)
+                if not os.path.exists(base_dir):
+                    os.makedirs(os.path.dirname(output_fn))
+
                 logger.debug("Writing XML to '{0}'".format(output_fn))
                 with io.open(output_fn, 'w', encoding='utf-8') as f:
                     f.write(job.output().decode('utf-8'))
